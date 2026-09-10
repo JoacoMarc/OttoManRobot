@@ -23,6 +23,23 @@ PERMITIDAS: dict[str, dict[str, tuple[str, str]]] = {
         "saludo": ("saludar", "Saluda con la mano"),
         "dar_la_mano": ("dar_la_mano", "Extiende la mano para saludar"),
     },
+    # El G1 con manos Dex3. Es una clave APARTE de "g1" a proposito: el robot
+    # del laboratorio fisico entra por "g1" y su lista queda intacta, byte por
+    # byte. Las tres jugadas son solo brazo y dedos -- no cambian la postura,
+    # no mueven la base, no desequilibran -- o sea la misma clase que saludo y
+    # dar_la_mano. Hoy existen unicamente en el simulador: el LocoClient del G1
+    # real no tiene con que hacerlas (ver robot.py::_conectar_sdk).
+    "g1_mano": {
+        "saludo": ("saludar", "Saluda con la mano"),
+        "dar_la_mano": ("dar_la_mano", "Extiende la mano para saludar"),
+        "preparar": ("preparar_tirada", "Cuenta antes de tirar"),
+        "golpe": ("golpear", "Un golpe de la cuenta"),
+        "piedra": ("tirar", "Tira piedra (puno cerrado)"),
+        "papel": ("tirar", "Tira papel (mano abierta)"),
+        "tijera": ("tirar", "Tira tijera (dos dedos)"),
+        "festejo": ("festejar", "Festeja con un bailecito"),
+        "lamento": ("lamentarse", "Se agarra la cabeza"),
+    },
     "go2": {
         "saludo": ("saludar", "Saluda"),
     },

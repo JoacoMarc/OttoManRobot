@@ -159,8 +159,15 @@ class ServidorLocal(socketserver.ThreadingTCPServer):
             # La lista blanca vive en acciones.py y es la MISMA que usa el
             # laboratorio fisico. Nada que cambie la postura pasa por aca.
             return {"ok": False, "error": str(exc)}
-        self.mundo.gesto(nombre, float(pedido.get("duracion", 2.0)))
-        return {"ok": True}
+        # La duracion la manda la tabla del robot, no un 2.0 fijo. Con el fijo,
+        # WaveHand() -- que no manda duracion -- cortaba el saludo en 2.0 cuando
+        # el Gesto dice 2.2; y las jugadas de piedra papel o tijera duran 5 s,
+        # que el cliente no tiene por que saber.
+        gesto = self.robot.gestos.get(nombre)
+        duracion = float(pedido.get("duracion")
+                         or getattr(gesto, "duracion", 2.0))
+        self.mundo.gesto(nombre, duracion)
+        return {"ok": True, "duracion": duracion}
 
     def _orden_estado(self, _pedido: dict) -> dict:
         return {"ok": True, "estado": self.mundo.leer()}
@@ -192,6 +199,8 @@ class ClienteLocal:
         self._archivo = None
         self._lock = threading.Lock()
         self.info: dict = {}
+        self.ultima_duracion = 2.0   # cuanto duro el ultimo gesto pedido
+        self.ultimo_error = ""       # por que se rechazo el ultimo pedido
 
     # ---------- conexion ----------
     def Init(self) -> None:
@@ -254,12 +263,33 @@ class ClienteLocal:
     def StopMove(self) -> int:
         return self._codigo(self._pedir({"orden": "detener"}))
 
+    def ExecuteAction(self, accion: str, duracion: float | None = None) -> int:
+        """Un gesto por NOMBRE, en vez de un metodo por gesto.
+
+        El nombre tambien sale del SDK: el G1 real tiene
+        `G1ArmActionClient.ExecuteAction(id)`. Aca el "id" es el nombre del
+        gesto, que es justo lo que `mundo.accion` necesita para saber que
+        dibujar. Asi agregar un gesto no obliga a agregar un metodo.
+
+        OJO: el `LocoClient` del G1 real NO tiene este metodo, y esta bien que
+        no lo tenga -- ver `robot.py::gesto`, que avisa en vez de fingir.
+        """
+        pedido = {"orden": "gesto", "nombre": accion}
+        if duracion is not None:
+            pedido["duracion"] = float(duracion)
+        respuesta = self._pedir(pedido)
+        # Cuanto dura DE VERDAD lo decide la tabla del robot, del lado del
+        # servidor. El cliente lo guarda para poder esperar lo justo.
+        self.ultima_duracion = float(respuesta.get("duracion", duracion or 2.0))
+        self.ultimo_error = "" if respuesta.get("ok") else str(
+            respuesta.get("error", "el simulador rechazo el gesto"))
+        return self._codigo(respuesta)
+
     def WaveHand(self) -> int:
-        return self._codigo(self._pedir({"orden": "gesto", "nombre": "saludo"}))
+        return self.ExecuteAction("saludo")
 
     def ShakeHand(self) -> int:
-        return self._codigo(self._pedir({"orden": "gesto",
-                                         "nombre": "dar_la_mano"}))
+        return self.ExecuteAction("dar_la_mano")
 
     def Estado(self) -> dict:
         return self._pedir({"orden": "estado"}).get("estado", {})

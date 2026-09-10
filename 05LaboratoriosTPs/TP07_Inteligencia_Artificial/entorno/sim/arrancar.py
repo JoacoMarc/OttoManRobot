@@ -343,7 +343,11 @@ class SimuladorOficial:
                 art[idx] = base + (objetivo - base) * f
         for idx, amplitud in gesto.vibra.items():
             if idx < len(art):
-                art[idx] += amplitud * f * math.sin(progreso * 6.0 * math.pi)
+                # `ciclos` idas y vueltas a lo largo del gesto. Por defecto son
+                # 3, que es lo que el saludo venia haciendo con el 6*pi fijo.
+                art[idx] += amplitud * f * math.sin(
+                    progreso * 2.0 * gesto.ciclos * math.pi
+                    + gesto.desfase.get(idx, 0.0))
 
         q[2] += gesto.altura * f
 
@@ -371,6 +375,23 @@ class SimuladorOficial:
             print("*" * 62)
             print(f"  Motivo: {type(exc).__name__}: {str(exc).splitlines()[0]}")
             print()
+            # En macOS esto NO es un problema de video: launch_passive exige
+            # correr bajo `mjpython` porque el bucle de eventos de Cocoa tiene
+            # que estar en el hilo principal. Decir "drivers de OpenGL" manda a
+            # buscar el problema donde no esta.
+            if "mjpython" in str(exc):
+                print("  En macOS la ventana 3D se abre con mjpython, no con")
+                print("  python. Es lo mismo, pero con el bucle de eventos que")
+                print("  pide el sistema. Volve a ejecutar asi:")
+                print()
+                print("      ~/.venvs/unitree/bin/mjpython -m sim \\")
+                print("          --robot g1_mano --materia tp07")
+                print()
+                print("  (INICIAR_SIMULADOR ya lo elige solo.)")
+                print("*" * 62)
+                print()
+                self.correr_sin_ventana()
+                return
             print("  Casi siempre es una de estas:")
             print("    - una maquina virtual sin GPU configurada")
             print("    - una sesion por escritorio remoto")
@@ -409,8 +430,11 @@ class SimuladorOficial:
             self.model, self.data, show_left_ui=False, show_right_ui=False,
             key_callback=(mando.tecla if mando is not None else None)
         ) as v:
-            v.cam.distance = 3.5 if self.robot.tipo == "humanoide" else 2.6
-            v.cam.elevation = -20
+            v.cam.distance = (self.robot.camara_distancia
+                              or (3.5 if self.robot.tipo == "humanoide" else 2.6))
+            v.cam.elevation = self.robot.camara_elevacion or -20
+            if self.robot.camara_altura:
+                v.cam.lookat[2] = self.robot.camara_altura
             if mando is not None:
                 # Le da acceso a v.opt para deshacer los atajos del visor.
                 mando.enganchar(v)

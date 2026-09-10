@@ -123,6 +123,43 @@ def _publicar_pose(mundo, detener):
         time.sleep(0.1)
 
 
+def _relanzar_con_mjpython(argv) -> None:
+    """En macOS, volver a arrancar bajo `mjpython` si hace falta.
+
+    `mujoco.viewer.launch_passive` NO abre ventana bajo el `python` comun en
+    macOS: el bucle de eventos de Cocoa tiene que correr en el hilo principal,
+    y por eso MuJoCo trae su propio lanzador. Con `python` a secas el simulador
+    arranca igual pero cae al modo consola -- y el aviso queda tapado apenas la
+    vista de texto se redibuja encima, asi que ni siquiera se ve por que.
+
+    Antes que explicarlo, lo resolvemos: si `mjpython` esta al lado del python
+    que se uso, nos reemplazamos por el. Va ANTES de abrir el puerto 8765; si
+    fuera despues, el proceso nuevo se encontraria el puerto ocupado por el
+    viejo.
+    """
+    import os
+    import sys
+
+    if sys.platform != "darwin" or "--sin-ventana" in argv:
+        return
+    try:
+        import mujoco.viewer
+    except Exception:                                         # noqa: BLE001
+        return
+    # None = estamos bajo el python comun; bajo mjpython es un objeto.
+    if getattr(mujoco.viewer, "_MJPYTHON", None) is not None:
+        return
+
+    mjpython = os.path.join(os.path.dirname(sys.executable), "mjpython")
+    if not os.access(mjpython, os.X_OK):
+        return
+
+    print("  [macOS] La ventana 3D necesita mjpython. Relanzando con el...")
+    print()
+    sys.stdout.flush()
+    os.execv(mjpython, [mjpython, "-m", "sim", *argv])
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="sim", description="Simulador oficial Unitree - Laboratorios UADE")
@@ -147,6 +184,10 @@ def main(argv=None) -> int:
     ap.add_argument("--solo-revisar", action="store_true",
                     help="revisa el entorno y sale")
     args = ap.parse_args(argv)
+
+    # 0. En macOS, la ventana 3D solo abre bajo mjpython. Si no estamos ahi,
+    #    nos relanzamos: tiene que pasar antes de abrir el puerto.
+    _relanzar_con_mjpython(list(argv) if argv is not None else sys.argv[1:])
 
     # 1. Verificar el entorno ANTES de prometer nada.
     #    El TP04 necesita el backend; los demas no.

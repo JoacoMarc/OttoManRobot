@@ -35,6 +35,17 @@ echo
 CANDIDATOS="python3 python3.13 python3.12 python3.11 python3.10 python"
 [ -x "$HOME/.venvs/unitree/bin/python" ] && CANDIDATOS="$HOME/.venvs/unitree/bin/python $CANDIDATOS"
 
+# En macOS la ventana 3D SOLO abre con `mjpython`, nunca con `python` a secas:
+# launch_passive necesita el bucle de eventos de Cocoa corriendo en el hilo
+# principal, y MuJoCo trae su propio lanzador justo para eso. Con `python` el
+# simulador arranca igual pero cae al modo consola, sin robot en pantalla, y
+# el motivo que imprime habla de OpenGL, que no tiene nada que ver.
+# `mjpython` se instala junto con mujoco, al lado del `python` del entorno.
+if [ "$(uname -s)" = "Darwin" ]; then
+  CANDIDATOS="mjpython $CANDIDATOS"
+  [ -x "$HOME/.venvs/unitree/bin/mjpython" ] && CANDIDATOS="$HOME/.venvs/unitree/bin/mjpython $CANDIDATOS"
+fi
+
 PYTHON=""; PRIMERO=""
 for PY in $CANDIDATOS; do
   command -v "$PY" >/dev/null 2>&1 || [ -x "$PY" ] || continue

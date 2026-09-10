@@ -1,0 +1,7 @@
+# Los modelos se bajan, no se versionan: son 66 MB entre los dos.
+#   hand_landmarker.task  ->  storage.googleapis.com/mediapipe-models/...
+#   vosk-es               ->  alphacephei.com/vosk/models (vosk-model-small-es-0.42)
+# Ver LEEME.md.
+modelos/
+partidas.csv
+__pycache__/

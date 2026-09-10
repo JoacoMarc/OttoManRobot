@@ -1,0 +1,13 @@
+<mujoco model="g1_29dof_with_hand - escena UADE">
+  <!-- Generado por el laboratorio UADE. NO es un archivo oficial de Unitree.
+       Se regenera solo si se borra. No modifica ningun archivo oficial. -->
+  <include file="g1_29dof_with_hand.xml"/>
+
+  <statistic center="0.16 -0.10 0.98" extent="1.1"/>
+
+  <visual>
+    <headlight diffuse="0.65 0.65 0.65" ambient="0.4 0.4 0.4" specular="0.1 0.1 0.1"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-135" elevation="-8" offwidth="1280" offheight="960"/>
+  </visual>
+</mujoco>

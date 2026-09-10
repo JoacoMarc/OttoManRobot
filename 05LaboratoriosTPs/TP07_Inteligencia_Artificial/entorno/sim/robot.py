@@ -49,6 +49,10 @@ ARCHIVO_ACTIVO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # programa muere, el robot frena solo en ~1 s. Ver frenado en el CONTRATO.
 PASO_REFRESCO = 0.1
 
+# Las tres jugadas de piedra, papel o tijera. Solo las tiene el G1 con manos
+# Dex3 (--robot g1_mano): son poses de dedos.
+JUGADAS = ("piedra", "papel", "tijera")
+
 _DDS_INICIADO = {"hecho": False}
 
 
@@ -137,8 +141,12 @@ class Robot:
 
         info = self._cliente.info or {}
         self.modelo = info.get("robot", self.modelo)
-        nombre = ("Unitree G1 (humanoide)" if self.modelo == "g1"
-                  else "Unitree Go2 (perro)")
+        # El nombre lo manda el servidor, que es el que sabe que modelo abrio.
+        # Antes se elegia entre dos nombres fijos, asi que cualquier robot que
+        # no fuera "g1" se anunciaba como perro.
+        nombre = info.get("nombre") or (
+            "Unitree G1 (humanoide)" if self.modelo.startswith("g1")
+            else "Unitree Go2 (perro)")
 
         # EL SERVIDOR MANDA SOBRE LOS LIMITES.
         #
@@ -349,7 +357,7 @@ class Robot:
             metodo = getattr(self._cliente, nombre, None)
             if metodo is not None:
                 metodo()
-                time.sleep(2.0)
+                self._dormir_gesto()
                 return self.verificar_estado()
         raise NotImplementedError("Este robot no tiene un gesto de saludo.")
 
@@ -360,8 +368,86 @@ class Robot:
         if metodo is None:
             raise NotImplementedError("Este robot no puede dar la mano.")
         metodo()
-        time.sleep(2.0)
+        self._dormir_gesto()
         return self.verificar_estado()
+
+    def _dormir_gesto(self) -> None:
+        """Espera lo que dura el gesto de verdad, no un 2.0 fijo.
+
+        La duracion la fija la tabla de `robots.py` y el simulador la devuelve
+        al pedirlo. Con el 2.0 fijo, el saludo (que dura 2.2) se cortaba en la
+        cola. Por DDS no hay de donde sacarla y se mantiene el 2.0 de siempre.
+        """
+        duracion = getattr(self._cliente, "ultima_duracion", None)
+        time.sleep(duracion + 0.1 if duracion else 2.0)
+
+    # ---------- gestos ----------
+    def gesto(self, nombre: str, duracion: float | None = None,
+              esperar: bool = True) -> EstadoRobot:
+        """Pide un gesto por nombre.
+
+        Con `esperar=False` vuelve enseguida, sin dormir. Lo necesita el juego
+        de piedra papel o tijera: mientras el brazo se mueve tiene que seguir
+        leyendo la webcam, y un sleep de 5 s le congelaria la imagen. El pedido
+        en si no bloquea -- es un ida y vuelta por loopback --, lo unico que
+        bloqueaba era el sleep.
+        """
+        self._exigir_conexion()
+        metodo = getattr(self._cliente, "ExecuteAction", None)
+        if metodo is None:
+            # El LocoClient del G1 real no sabe hacer gestos arbitrarios. Se
+            # avisa en vez de fingir que salio bien: si no, el robot se queda
+            # quieto y el programa dice que jugo.
+            raise NotImplementedError(
+                f"Este robot no hace gestos por nombre ('{nombre}'). "
+                "El G1 real solo tiene saludar() y dar_la_mano().")
+        if metodo(nombre, duracion) != 0:
+            # El rechazo pasa del lado del servidor -- ahi vive la lista blanca
+            # de acciones.py. Si no lo levantaramos aca, el gesto se perderia en
+            # SILENCIO: el robot quieto y el programa diciendo que lo hizo. Es
+            # el mismo motivo por el que _verificar_servicio existe.
+            from .acciones import AccionProhibida
+            raise AccionProhibida(
+                getattr(self._cliente, "ultimo_error", "")
+                or f"el simulador rechazo el gesto '{nombre}'")
+        if esperar:
+            time.sleep((duracion
+                        or getattr(self._cliente, "ultima_duracion", 2.0)) + 0.1)
+        return self.verificar_estado()
+
+    def tirar(self, jugada: str, esperar: bool = False) -> EstadoRobot:
+        """Tira piedra, papel o tijera.
+
+        NO elige la jugada: la recibe ya elegida. Es a proposito, y es lo que
+        hace que el juego sea honesto -- quien llama tiene que haberse
+        comprometido ANTES de mirar la mano del rival.
+        """
+        j = str(jugada).strip().lower()
+        if j not in JUGADAS:
+            raise ValueError(
+                f"jugada invalida: {jugada!r}. Validas: {', '.join(JUGADAS)}.")
+        return self.gesto(j, esperar=esperar)
+
+    def preparar_tirada(self, esperar: bool = False) -> EstadoRobot:
+        """La cuenta entera: tres golpes de brazo seguidos."""
+        return self.gesto("preparar", esperar=esperar)
+
+    def festejar(self, esperar: bool = False) -> EstadoRobot:
+        """Bailecito de ganador."""
+        return self.gesto("festejo", esperar=esperar)
+
+    def lamentarse(self, esperar: bool = False) -> EstadoRobot:
+        """Se agarra la cabeza y se agacha un poco."""
+        return self.gesto("lamento", esperar=esperar)
+
+    def golpear(self, esperar: bool = False) -> EstadoRobot:
+        """UN golpe de la cuenta.
+
+        Se llama una vez por palabra -- "piedra", "papel", "tijera" -- para que
+        el brazo vaya al ritmo de la voz. `preparar_tirada` hace los tres de un
+        saque, que sirve cuando no hay voz con que sincronizar.
+        """
+        return self.gesto("golpe", esperar=esperar)
 
     # ---------- alias tolerantes a errores de tipeo ----------
     def movmineto(self, *a, **k):

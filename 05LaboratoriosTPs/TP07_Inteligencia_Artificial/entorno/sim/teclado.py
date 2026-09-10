@@ -51,6 +51,11 @@ from __future__ import annotations
 # es la identidad, asi que no hay que traducir nada.
 ESPACIO = 32
 C, D, E, H, I, J, M, P, Q = 67, 68, 69, 72, 73, 74, 77, 80, 81
+# Piedra, papel o tijera. Las cuatro estan en mjVISSTRING (reversibles) y
+# libres. Ojo: R y L, que serian los mnemonicos obvios, estan en mjRNDSTRING
+# y no se pueden deshacer -- ver el encabezado.
+O, A, V, Y = 79, 65, 86, 89
+B, F = 66, 70          # festejo y lamento
 FLECHA_DER, FLECHA_IZQ, FLECHA_ABAJO, FLECHA_ARRIBA = 262, 263, 264, 265
 
 # Cada tecla de movimiento toca UN eje, con su signo. Los ejes son los del
@@ -73,6 +78,12 @@ _GESTOS: dict[int, str] = {
     P: "patada",
     J: "salto",
     M: "agarre",
+    O: "piedra",      # O de puno cerrado
+    A: "papel",       # A de mano abierta
+    V: "tijera",      # V de los dos dedos
+    Y: "preparar",    # Y de "ya": la cuenta antes de tirar
+    B: "festejo",     # B de baile
+    F: "lamento",     # F de fracaso
 }
 
 AGACHARSE = C
@@ -98,6 +109,10 @@ AYUDA = """  ------------------------------------------------------------
      D   dar la mano             J   saltar
      M   agarrar                 C   agacharse (otra vez se para)
      I   volver al inicio
+
+     Solo el G1 con manos (--robot g1_mano):
+     O   piedra    A   papel    V   tijera    Y   la cuenta
+     B   festeja   F   se lamenta
 
    No hace falta mantener la tecla apretada: la prendes y el robot
    sigue. La MISMA flecha apaga ese movimiento, y se pueden combinar
